@@ -140,11 +140,12 @@ void TIM4_Configuration(uint32_t new_ccr[4])
   TIM_OCInitTypeDef  TIM_OCInitStructure;
   int Prescaler;//, Period;
 
-  Prescaler = 80;//((SystemCoreClock / 2) / 1000000);//360000); // ~360 KHz timebase, assumes APB1 H/4 TIMCLK4 H/2
+  Prescaler = 80;
 
-  period = 65535; // ~10 Hz -> ~ 5 Hz
+  period = 65535;
 
   // The toggle halves the frequency
+
 
   /* Time base configuration */
   TIM_TimeBaseStructure.TIM_Period = period - 1;
@@ -193,8 +194,13 @@ int TIM_reset(uint16_t f, uint8_t duty[4], uint8_t phase[4])
 	uint32_t low;
 	uint32_t new_ccr[4];
 
+	TIM_ITConfig(TIM4, TIM_IT_CC1|TIM_IT_CC2|TIM_IT_CC3|TIM_IT_CC4, DISABLE);
     TIM_Cmd(TIM4, DISABLE);
-    TIM_ITConfig(TIM4, TIM_IT_CC1|TIM_IT_CC2|TIM_IT_CC3|TIM_IT_CC4, DISABLE);
+    //GPIO_DeInit(GPIOD);
+
+
+    // reset the 4 output pins
+    //GPIO_ResetBits (GPIOD, GPIO_Pin_12 | GPIO_Pin_13 | GPIO_Pin_14 | GPIO_Pin_15);
 
     if (f < 5 || f > 3000)
     		return -1;
@@ -225,6 +231,13 @@ int TIM_reset(uint16_t f, uint8_t duty[4], uint8_t phase[4])
     	flag[i] = 1;
     }
     //TIM4->CNT = 0;
+    TIM_DeInit(TIM4);
+    GPIO_DeInit(GPIOD);
+    RCC_DeInit();
+    SystemInit();
+     SystemCoreClockUpdate();
+    RCC_Configuration();
+    GPIO_Configuration();
     TIM_ITConfig(TIM4, TIM_IT_CC1|TIM_IT_CC2|TIM_IT_CC3|TIM_IT_CC4, ENABLE);
     TIM4_Configuration(new_ccr);
 
@@ -257,7 +270,7 @@ int main(void)
   //TIM4_Configuration();
 
 
-int i;
+int i,j;
 uint8_t d[4] = {50,50,50,50};
 uint8_t p[4] = {0, 25, 50, 100};
   //while(1){ /* Infinite loop */
@@ -270,8 +283,16 @@ uint8_t p[4] = {0, 25, 50, 100};
             for(i=0;i<900000;i++);  // delay
             for(i=0;i<900000;i++);  // delay
             for(i=0;i<900000;i++);  // delay
+for (j = 10; j <= 1000; j++) {
+           TIM_reset(j, d, p);
+	GPIO_ToggleBits (GPIOD, GPIO_Pin_12 | GPIO_Pin_13 | GPIO_Pin_14 | GPIO_Pin_15);
 
-            TIM_reset(100, d, p);
+            for(i=0;i<900000;i++);  // delay
+            for(i=0;i<900000;i++);  // delay
+            for(i=0;i<900000;i++);  // delay
+            //GPIOD->BSRRH = GPIO_Pin_12 | GPIO_Pin_13 | GPIO_Pin_14 | GPIO_Pin_15;
+
+}
 while(1);
 
  // }
