@@ -12,24 +12,13 @@
 
 #include "stm32f4xx.h"
 
-/* leds in the board will fade */
-
 uint32_t ccr[4][3];
 uint8_t flag[4] = {1,1,1,1};
 int period = 36000;
-//uint8_t ccr_order[4];
 
 
 void TIM4_IRQHandler(void)
 {
-//	static uint8_t i = 0;
-//	static uint32_t * ccr_p = {
-//			&(TIM4->CCR1),
-//			&(TIM4->CCR2),
-//			&(TIM4->CCR3),
-//			&(TIM4->CCR4),
-//	};
-
 	if (TIM_GetITStatus(TIM4, TIM_IT_CC1) != RESET) {
 		TIM_ClearITPendingBit(TIM4, TIM_IT_CC1);
 		TIM4->CCR1 += (flag[0] == 2 ?
@@ -65,36 +54,18 @@ void TIM4_IRQHandler(void)
 		if (flag[3] == 3)
 			flag[3] = 1;
 	}
-
-//	if (TIM_GetITStatus(TIM4, TIM_IT_Update) != RESET)
-//	{
-//
-//		ccr_p[i] = ccr[i][flag];
-//		i++;
-//
-//		i %= 4;
-//		if (!i) {
-//			if (flag)
-//				flag = 0;
-//			else
-//				flag = 1;
-//		}
-//
-//		TIM_ClearITPendingBit(TIM4, TIM_IT_Update);
-//	}
 }
 
 void INTTIM_Config(void)
 {
 NVIC_InitTypeDef NVIC_InitStructure;
+
 /* Enable the TIM4 gloabal Interrupt */
 NVIC_InitStructure.NVIC_IRQChannel = TIM4_IRQn;
 NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0;
 NVIC_InitStructure.NVIC_IRQChannelSubPriority = 1;
 NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
 NVIC_Init(&NVIC_InitStructure);
-
-
 
 /* TIM IT enable */
 TIM_ITConfig(TIM4, TIM_IT_CC1|TIM_IT_CC2|TIM_IT_CC3|TIM_IT_CC4, ENABLE);
@@ -143,9 +114,6 @@ void TIM4_Configuration(uint32_t new_ccr[4])
   Prescaler = 80;
 
   period = 65535;
-
-  // The toggle halves the frequency
-
 
   /* Time base configuration */
   TIM_TimeBaseStructure.TIM_Period = period - 1;
@@ -196,11 +164,6 @@ int TIM_reset(uint16_t f, uint8_t duty[4], uint8_t phase[4])
 
 	TIM_ITConfig(TIM4, TIM_IT_CC1|TIM_IT_CC2|TIM_IT_CC3|TIM_IT_CC4, DISABLE);
     TIM_Cmd(TIM4, DISABLE);
-    //GPIO_DeInit(GPIOD);
-
-
-    // reset the 4 output pins
-    //GPIO_ResetBits (GPIOD, GPIO_Pin_12 | GPIO_Pin_13 | GPIO_Pin_14 | GPIO_Pin_15);
 
     if (f < 5 || f > 3000)
     		return -1;
@@ -234,6 +197,7 @@ int TIM_reset(uint16_t f, uint8_t duty[4], uint8_t phase[4])
     TIM_DeInit(TIM4);
     GPIO_DeInit(GPIOD);
     RCC_DeInit();
+
     SystemInit();
      SystemCoreClockUpdate();
     RCC_Configuration();
@@ -241,59 +205,23 @@ int TIM_reset(uint16_t f, uint8_t duty[4], uint8_t phase[4])
     TIM_ITConfig(TIM4, TIM_IT_CC1|TIM_IT_CC2|TIM_IT_CC3|TIM_IT_CC4, ENABLE);
     TIM4_Configuration(new_ccr);
 
-
     return 0;
 }
 
 int main(void)
 {
- ccr[0][0] = 65535/2;
- ccr[0][1] = 65535/2;
- ccr[0][2] = 1;
- ccr[1][0] = 10;
- ccr[1][1] = 10;
- ccr[1][2] = 10;
- ccr[2][0] = 65535 - 400;
- ccr[2][1] = 399;
- ccr[2][2] = 1;
- ccr[3][0] = 65535 - 801;
- ccr[3][1] = 800;
- ccr[3][2] = 1;
- //int Period = 36000; // ~10 Hz -> ~ 5 Hz
- SystemInit();
- SystemCoreClockUpdate();
+	SystemInit();
+	SystemCoreClockUpdate();
 
-  RCC_Configuration();
+	RCC_Configuration();
 
-  GPIO_Configuration();
+	GPIO_Configuration();
 
-  //TIM4_Configuration();
+	uint8_t d[4] = {50,50,50,50};
+	uint8_t p[4] = {25, 50, 75, 100};
 
 
-int i,j;
-uint8_t d[4] = {50,50,50,50};
-uint8_t p[4] = {0, 25, 50, 100};
-  //while(1){ /* Infinite loop */
-//	  ccr[0][0]+=1;
-//	  ccr[0][0] %= 360;
-//
-//	  ccr[0][1] -= 1;
-//	  ccr[0][1] %= 360;
+	TIM_reset(10, d, p);
 
-            for(i=0;i<900000;i++);  // delay
-            for(i=0;i<900000;i++);  // delay
-            for(i=0;i<900000;i++);  // delay
-for (j = 10; j <= 1000; j++) {
-           TIM_reset(j, d, p);
-	GPIO_ToggleBits (GPIOD, GPIO_Pin_12 | GPIO_Pin_13 | GPIO_Pin_14 | GPIO_Pin_15);
-
-            for(i=0;i<900000;i++);  // delay
-            for(i=0;i<900000;i++);  // delay
-            for(i=0;i<900000;i++);  // delay
-            //GPIOD->BSRRH = GPIO_Pin_12 | GPIO_Pin_13 | GPIO_Pin_14 | GPIO_Pin_15;
-
-}
-while(1);
-
- // }
+	while(1);
 }
