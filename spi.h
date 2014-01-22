@@ -69,7 +69,7 @@ typedef struct {
 // Globale Funktionen
 //--------------------------------------------------------------
 ErrorStatus UB_SPI2_Init(SPI2_Mode_t mode);
-uint8_t UB_SPI2_SendByte(uint8_t wert);
+uint16_t UB_SPI2_SendByte(uint16_t wert);
 
 
 

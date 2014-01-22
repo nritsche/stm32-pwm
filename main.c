@@ -7,9 +7,6 @@
 #include "spi.h"
 #include "slist.h"
 #include "stm32_ub_dac_dma.h"
-
-#include "stm32f4xx.h"
-
 #include "stm32f4xx.h"
 
 uint32_t ccr[4][3];
@@ -101,6 +98,13 @@ void GPIO_Configuration(void)
   GPIO_PinAFConfig(GPIOD, GPIO_PinSource14, GPIO_AF_TIM4); // PD14 TIM4_CH3 RED
   GPIO_PinAFConfig(GPIOD, GPIO_PinSource15, GPIO_AF_TIM4); // PD15 TIM4_CH4 BLUE
 
+  // PB10 is the CS pin for SPI
+  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_10;		  // we want to configure PE15
+  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN; 	  // we want it to be an input
+  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;//this sets the GPIO modules clock speed
+  GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;   // this sets the pin type to push / pull (as opposed to open drain)
+  GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_DOWN;   // this enables the pulldown resistor --> we want to detect a high level
+  GPIO_Init(GPIOB, &GPIO_InitStructure);			  // this passes the configuration to the Init function which takes care of the low level stuff
 }
 
 //******************************************************************************
@@ -217,11 +221,39 @@ int main(void)
 
 	GPIO_Configuration();
 
-	uint8_t d[4] = {50,50,50,50};
-	uint8_t p[4] = {25, 50, 75, 100};
+	UB_SPI2_Init(SPI_MODE_2);
 
 
-	TIM_reset(10, d, p);
+	uint8_t duty[4] = {50,50,50,50};
+	uint8_t phase[4] = {25, 50, 75, 100};
+	uint16_t data, xor = 0x0000, i, freq, answer = 0x00;
 
-	while(1);
-}
+
+	//TIM_reset(10, d, p);
+
+	while (1) {
+		i = 0;
+		xor = 0;
+		answer = 0;
+
+		// wait for CS pin to be active
+		while ((GPIOB->IDR & (0x1 << 10)));
+
+		while (!(GPIOB->IDR & (0x1 << 10))) {
+			data = UB_SPI2_SendByte(answer);
+
+			if (i == 0)
+				freq = data;
+			else if (i < 5)
+				duty[i - 1] = data;
+			else if (i < 9)
+				phase[i - 5] = data;
+			else if (i == 9 && data == xor)
+					answer = xor;
+
+			xor ^= data;
+			i++;
+		}
+
+		TIM_reset(freq, duty, phase);
+	}}

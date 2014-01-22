@@ -80,7 +80,7 @@ ErrorStatus UB_SPI2_Init(SPI2_Mode_t mode)
   // SPI-Konfiguration
   SPI_InitStructure.SPI_Direction = SPI_Direction_2Lines_FullDuplex;
   SPI_InitStructure.SPI_Mode = SPI_Mode_Slave;
-  SPI_InitStructure.SPI_DataSize = SPI_DataSize_8b;
+  SPI_InitStructure.SPI_DataSize = SPI_DataSize_16b;
   if(mode==SPI_MODE_0) {
     SPI_InitStructure.SPI_CPOL = SPI_CPOL_Low;
     SPI_InitStructure.SPI_CPHA = SPI_CPHA_1Edge;
@@ -95,10 +95,10 @@ ErrorStatus UB_SPI2_Init(SPI2_Mode_t mode)
     SPI_InitStructure.SPI_CPHA = SPI_CPHA_2Edge;
   }
   SPI_InitStructure.SPI_NSS = SPI_NSS_Soft;
-  SPI_InitStructure.SPI_BaudRatePrescaler = SPI2_VORTEILER;
+  //SPI_InitStructure.SPI_BaudRatePrescaler = SPI2_VORTEILER;
 
   SPI_InitStructure.SPI_FirstBit = SPI_FirstBit_MSB;
-  SPI_InitStructure.SPI_CRCPolynomial = 7;
+  //SPI_InitStructure.SPI_CRCPolynomial = 7;
 
  // I2S_Cmd(SPI2, DISABLE);
 
@@ -120,9 +120,9 @@ ErrorStatus UB_SPI2_Init(SPI2_Mode_t mode)
 // sendet und empfängt ein Byte per SPI2
 // ChipSelect-Signal muss von rufender Funktion gemacht werden
 //--------------------------------------------------------------
-uint8_t UB_SPI2_SendByte(uint8_t wert)
+uint16_t UB_SPI2_SendByte(uint16_t wert)
 {
-  uint8_t ret_wert=0;
+  uint16_t ret_wert=0;
 
   // warte bis senden fertig
   while (SPI_I2S_GetFlagStatus(SPI2, SPI_I2S_FLAG_TXE) == RESET);
