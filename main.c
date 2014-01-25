@@ -11,6 +11,7 @@
 
 uint32_t ccr[4][3];
 uint8_t flag[4] = {1,1,1,1};
+uint8_t toggle_mode[4] = {0,0,0,0};
 int period = 36000;
 
 
@@ -84,13 +85,43 @@ void GPIO_Configuration(void)
 {
   GPIO_InitTypeDef GPIO_InitStructure;
 
-  /* GPIOD Configuration:  TIM4 on PD12/PD13/PD14 LED */
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_12 | GPIO_Pin_13 | GPIO_Pin_14 | GPIO_Pin_15;
-  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
-  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
-  GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
-  GPIO_Init(GPIOD, &GPIO_InitStructure);
+  GPIO_InitStructure.GPIO_Pin = 0;
+
+  /* GPIOD Configuration:  TIM4 on PD12/PD13/PD14/PD15 LED */
+  if (toggle_mode[0])
+	  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_12;
+  if (toggle_mode[1])
+	  GPIO_InitStructure.GPIO_Pin |= GPIO_Pin_13;
+  if (toggle_mode[2])
+	  GPIO_InitStructure.GPIO_Pin |= GPIO_Pin_14;
+  if (toggle_mode[3])
+	  GPIO_InitStructure.GPIO_Pin |= GPIO_Pin_15;
+
+  if (GPIO_InitStructure.GPIO_Pin != 0) {
+	  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
+	  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
+	  GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
+	  GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
+	  GPIO_Init(GPIOD, &GPIO_InitStructure);
+  }
+
+  GPIO_InitStructure.GPIO_Pin = 0;
+
+  if (!toggle_mode[0])
+	  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_12;
+  if (!toggle_mode[1])
+	  GPIO_InitStructure.GPIO_Pin |= GPIO_Pin_13;
+  if (!toggle_mode[2])
+	  GPIO_InitStructure.GPIO_Pin |= GPIO_Pin_14;
+  if (!toggle_mode[3])
+	  GPIO_InitStructure.GPIO_Pin |= GPIO_Pin_15;
+  if (GPIO_InitStructure.GPIO_Pin != 0) {
+	  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
+	  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
+	  GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
+	  GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
+	  GPIO_Init(GPIOD, &GPIO_InitStructure);
+  }
 
   /* Connect TIM4 pin  */
   GPIO_PinAFConfig(GPIOD, GPIO_PinSource12, GPIO_AF_TIM4); // PD12 TIM4_CH1 GREEN
@@ -99,12 +130,12 @@ void GPIO_Configuration(void)
   GPIO_PinAFConfig(GPIOD, GPIO_PinSource15, GPIO_AF_TIM4); // PD15 TIM4_CH4 BLUE
 
   // PB10 is the CS pin for SPI
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_10;		  // we want to configure PE15
-  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN; 	  // we want it to be an input
-  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;//this sets the GPIO modules clock speed
-  GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;   // this sets the pin type to push / pull (as opposed to open drain)
-  GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_DOWN;   // this enables the pulldown resistor --> we want to detect a high level
-  GPIO_Init(GPIOB, &GPIO_InitStructure);			  // this passes the configuration to the Init function which takes care of the low level stuff
+  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_10;
+  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN;
+  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+  GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
+  GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_DOWN;
+  GPIO_Init(GPIOB, &GPIO_InitStructure);
 }
 
 //******************************************************************************
@@ -131,7 +162,6 @@ void TIM4_Configuration(uint32_t new_ccr[4])
   TIM_OCInitStructure.TIM_OutputState = TIM_OutputState_Enable;
   TIM_OCInitStructure.TIM_OCPolarity = TIM_OCPolarity_High;
 
-  /* Don't want to set 0 or Period, but have 3 points at 120 degrees from each other */
   TIM_OCInitStructure.TIM_Pulse = new_ccr[0];// - 1; added 1 to all phase values
   TIM_OC1Init(TIM4, &TIM_OCInitStructure);   // doesn't change anything but now
   	  	  	  	  	  	  	  	  	  	  	 // 0 as phase value is ok
@@ -160,11 +190,20 @@ uint32_t percent2time(uint16_t f, uint32_t percent)
 	return ret;
 }
 
+void set_channel(uint8_t i, uint8_t state)
+{
+	if (state)
+		GPIOD->BSRRL = 0x0001 << (i + 12);
+	else
+		GPIOD->BSRRH = 0x0001 << (i + 12);
+}
+
 int TIM_reset(uint16_t f, uint8_t duty[4], uint8_t phase[4])
 {
 	uint8_t i;
 	uint32_t low;
 	uint32_t new_ccr[4];
+	uint8_t state[4];
 
 	TIM_ITConfig(TIM4, TIM_IT_CC1|TIM_IT_CC2|TIM_IT_CC3|TIM_IT_CC4, DISABLE);
     TIM_Cmd(TIM4, DISABLE);
@@ -173,25 +212,32 @@ int TIM_reset(uint16_t f, uint8_t duty[4], uint8_t phase[4])
     		return -1;
 
     for (i = 0; i < 4; i++) {
-    		low = 100 - duty[i];
-    		if (phase[i] <= low) {
-    			ccr[i][0] = percent2time(f, phase[i]);
-    			ccr[i][1] = percent2time(f, duty[i]);
-    			ccr[i][2] = percent2time(f, low - phase[i]);
+    	toggle_mode[i] = 1;
+		low = 100 - duty[i];
+		if (duty[i] == 0) {
+			toggle_mode[i] = 0;
+			state[i] = 0;
+		}
+		if (duty[i] == 100) {
+			toggle_mode[i] = 0;
+			state[i] = 1;
+		}
+		else if (phase[i] <= low) {
+			ccr[i][0] = percent2time(f, phase[i]);
+			ccr[i][1] = percent2time(f, duty[i]);
+			ccr[i][2] = percent2time(f, low - phase[i]);
 
-    			new_ccr[i] = (ccr[i][0] == 0 ?
-    					ccr[i][0] + percent2time(f, 100) : ccr[i][0]);
-    		}
-    		else
-    		{
-    			ccr[i][0] = percent2time(f, 0);
-    			ccr[i][1] = percent2time(f, duty[i]);
-    			ccr[i][2] = percent2time(f, low);
+			new_ccr[i] = (ccr[i][0] == 0 ?
+					percent2time(f, 100) : ccr[i][0]);
+		}
+		else
+		{
+			ccr[i][0] = percent2time(f, 0);
+			ccr[i][1] = percent2time(f, duty[i]);
+			ccr[i][2] = percent2time(f, low);
 
-    			new_ccr[i] = (ccr[i] == 0 ?
-    					ccr[i][0] + percent2time(f, 100) :
-    					percent2time(f, phase[i]));
-    		}
+			new_ccr[i] = percent2time(f, phase[i]);
+		}
     }
 
     for (i = 0; i < 4; i++) {
@@ -208,6 +254,11 @@ int TIM_reset(uint16_t f, uint8_t duty[4], uint8_t phase[4])
     GPIO_Configuration();
     TIM_ITConfig(TIM4, TIM_IT_CC1|TIM_IT_CC2|TIM_IT_CC3|TIM_IT_CC4, ENABLE);
     TIM4_Configuration(new_ccr);
+
+    for (i = 0; i < 4; i++) {
+    	if (!toggle_mode[i])
+    		set_channel(i, state[i]);
+    }
 
     return 0;
 }
@@ -227,9 +278,6 @@ int main(void)
 	uint8_t duty[4] = {50,50,50,50};
 	uint8_t phase[4] = {25, 50, 75, 100};
 	uint16_t data, xor = 0x0000, i, freq, answer = 0x00;
-
-
-	//TIM_reset(10, d, p);
 
 	while (1) {
 		i = 0;
@@ -256,4 +304,5 @@ int main(void)
 		}
 
 		TIM_reset(freq, duty, phase);
-	}}
+	}
+}
