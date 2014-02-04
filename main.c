@@ -277,7 +277,7 @@ int main(void)
 
 	uint8_t duty[4] = {50,50,50,50};
 	uint8_t phase[4] = {25, 50, 75, 100};
-	uint16_t data, xor = 0x0000, i, freq, answer = 0x00;
+	uint16_t data, xor = 0x0000, i, freq = 10, answer = 0x00;
 
 	while (1) {
 		i = 0;
